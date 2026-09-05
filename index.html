@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Villi kopparin päiväkirja</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f5f7f4;color:#182018}
+header{background:#111511;color:#fff;padding:16px 5%;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.logo{font-weight:800;font-size:20px}.logo span{color:#72b844}button{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer}
+.primary{background:#5ca834;color:white}.danger{background:#ffe9e9;color:#b3261e}.wrap{max-width:1150px;margin:auto;padding:28px 18px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.top h1{margin:0;font-size:30px}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}.card{background:white;border:1px solid #dde4da;border-radius:14px;padding:18px}.label{font-size:13px;color:#687067}.value{font-size:24px;font-weight:800;margin-top:5px}
+.panel{background:white;border:1px solid #dde4da;border-radius:14px;padding:20px;margin-bottom:20px}.panel h2{margin-top:0}
+.formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}label{font-size:13px;font-weight:700}input{width:100%;margin-top:6px;padding:11px;border:1px solid #ccd5ca;border-radius:9px;font-size:16px}
+.actions{margin-top:14px;display:flex;gap:8px}
+.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:12px;border-bottom:1px solid #e7ebe5}th{font-size:13px;color:#687067}
+.chart{height:210px;display:flex;align-items:flex-end;gap:10px;padding:15px 8px 0}.bar{flex:1;min-width:18px;background:#67a83e;border-radius:7px 7px 0 0;position:relative}.bar small{position:absolute;top:-20px;width:100%;text-align:center;font-size:11px}
+@media(max-width:800px){.cards{grid-template-columns:repeat(2,1fr)}.formgrid{grid-template-columns:1fr 1fr}.top h1{font-size:23px}}
+@media(max-width:520px){header{padding:14px 16px}.wrap{padding:20px 12px}.cards{grid-template-columns:1fr 1fr;gap:9px}.card{padding:13px}.value{font-size:19px}.formgrid{grid-template-columns:1fr}.top{align-items:flex-start;gap:12px}.top button{white-space:nowrap}}
+</style>
+</head>
+<body>
+<header><div class="logo">🛞 <span>MÖNKIJÄN</span> AJOPÄIVÄKIRJA</div><div>☁ Tallennettu</div></header>
+<main class="wrap">
+  <div class="top"><h1>Yhteenveto</h1><button class="primary" onclick="document.getElementById('date').focus()">＋ Lisää tankkaus</button></div>
+  <section class="cards">
+    <div class="card"><div class="label">Kilometrit yhteensä</div><div class="value" id="kmTotal">0 km</div></div>
+    <div class="card"><div class="label">Polttoaine yhteensä</div><div class="value" id="fuelTotal">0,0 l</div></div>
+    <div class="card"><div class="label">Keskikulutus</div><div class="value" id="avg">–</div></div>
+    <div class="card"><div class="label">Polttoainekulut</div><div class="value" id="costTotal">0,00 €</div></div>
+  </section>
+
+  <section class="panel">
+    <h2>Lisää tankkaus</h2>
+    <div class="formgrid">
+      <div><label>Päivämäärä<input id="date" type="date"></label></div>
+      <div><label>Mittarilukema (km)<input id="odo" type="number" min="0" step="1" placeholder="10521"></label></div>
+      <div><label>Tankattu (l)<input id="liters" type="number" min="0" step="0.01" placeholder="12.40"></label></div>
+      <div><label>Hinta (€/l)<input id="price" type="number" min="0" step="0.001" placeholder="1.80"></label></div>
+    </div>
+    <div class="actions"><button class="primary" onclick="addEntry()">Tallenna tankkaus</button><button onclick="fillDemo()">Lisää esimerkkitiedot</button></div>
+  </section>
+
+  <section class="panel">
+    <h2>Tankkaukset</h2>
+    <div class="tablewrap"><table><thead><tr><th>Päivä</th><th>Mittari</th><th>Tankattu</th><th>Hinta</th><th>Ajettu</th><th>Kulutus</th><th>Kulut</th><th></th></tr></thead>
+    <tbody id="rows"></tbody></table></div>
+  </section>
+
+  <section class="panel"><h2>Kulutus</h2><div class="chart" id="chart"></div></section>
+</main>
+<script>
+const KEY="atv-log-v1";
+let entries=JSON.parse(localStorage.getItem(KEY)||"[]");
+const fmt=n=>Number(n).toLocaleString("fi-FI",{maximumFractionDigits:2});
+function save(){localStorage.setItem(KEY,JSON.stringify(entries));render()}
+function addEntry(){
+ const date=document.getElementById("date").value, odo=+document.getElementById("odo").value, liters=+document.getElementById("liters").value, price=+document.getElementById("price").value;
+ if(!date||!odo||!liters||!price){alert("Täytä kaikki kentät.");return}
+ entries.push({date,odo,liters,price}); entries.sort((a,b)=>a.odo-b.odo); save();
+ ["date","odo","liters","price"].forEach(id=>document.getElementById(id).value="");
+}
+function del(i){entries.splice(i,1);save()}
+function render(){
+ let fuel=0,cost=0,totalKm=0; const tbody=document.getElementById("rows"); tbody.innerHTML="";
+ const consumptions=[];
+ entries.forEach((e,i)=>{
+  let km=i?e.odo-entries[i-1].odo:0, cons=km>0?e.liters/km*100:null;
+  fuel+=e.liters; cost+=e.liters*e.price; totalKm+=km; if(cons)consumptions.push(cons);
+  tbody.innerHTML+=`<tr><td>${new Date(e.date+"T12:00").toLocaleDateString("fi-FI")}</td><td>${fmt(e.odo)}</td><td>${fmt(e.liters)} l</td><td>${fmt(e.price)} €</td><td>${km?fmt(km)+" km":"–"}</td><td>${cons?fmt(cons)+" l/100 km":"–"}</td><td>${fmt(e.liters*e.price)} €</td><td><button class="danger" onclick="del(${i})">Poista</button></td></tr>`;
+ });
+ document.getElementById("kmTotal").textContent=fmt(totalKm)+" km"; document.getElementById("fuelTotal").textContent=fmt(fuel)+" l"; document.getElementById("costTotal").textContent=fmt(cost)+" €";
+ document.getElementById("avg").textContent=consumptions.length?fmt(consumptions.reduce((a,b)=>a+b,0)/consumptions.length)+" l/100 km":"–";
+ const chart=document.getElementById("chart"); chart.innerHTML="";
+ const max=Math.max(...consumptions,1);
+ consumptions.forEach(v=>chart.innerHTML+=`<div class="bar" style="height:${Math.max(8,v/max*170)}px"><small>${fmt(v)}</small></div>`);
+}
+function fillDemo(){
+ entries=[
+ {date:"2026-08-01",odo:10521,liters:12.45,price:1.799},
+ {date:"2026-08-08",odo:10655,liters:9.20,price:1.799},
+ {date:"2026-08-15",odo:10801,liters:10.15,price:1.809},
+ {date:"2026-08-22",odo:10924,liters:8.40,price:1.809}
+ ];save()
+}
+render();
+</script>
+</body>
+</html>
